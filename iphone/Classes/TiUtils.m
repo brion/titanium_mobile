@@ -41,7 +41,13 @@ extern NSString * const TI_APPLICATION_RESOURCE_DIR;
 #if __IPHONE_OS_VERSION_MAX_ALLOWED >= __IPHONE_4_0
 		if ([[UIScreen mainScreen] respondsToSelector:@selector(scale)])
 		{
-			scale = [UIScreen mainScreen].scale;
+			// on the ipad running iphone app in emulation mode, this won't exist when
+			// do click 2x to scale it up so we have to check for this method, otherwise
+			// we'll get false positives and load wrong-size images
+			if ([UIImage instancesRespondToSelector:@selector(imageWithCGImage:scale:orientation:)])
+			{
+				scale = [UIScreen mainScreen].scale;
+			}
 		}
 #endif	
 	}

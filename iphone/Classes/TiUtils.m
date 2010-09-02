@@ -39,15 +39,16 @@ extern NSString * const TI_APPLICATION_RESOURCE_DIR;
 	if (scale == 0.0)
 	{
 #if __IPHONE_OS_VERSION_MAX_ALLOWED >= __IPHONE_4_0
-		// iPad in iPhone compatibility mode will return a scale factor of 2.0
-		// when in 2x zoom, which leads to false positives and bugs.
-		//
-		// FIXME: Future iPads might also have high-resolution displays, in which
-		// case this check will need to still go ahead and check resolution when
-		// running natively on iPad.
-		if (UI_USER_INTERFACE_IDIOM() != UIUserInterfaceIdiomPad)
+		if ([[UIScreen mainScreen] respondsToSelector:@selector(scale)])
 		{
-			if ([[UIScreen mainScreen] respondsToSelector:@selector(scale)])
+			if (UI_USER_INTERFACE_IDIOM() == UIUserInterfaceIdiomPhone &&
+				[[UIDevice currentDevice].model isEqualToString: @"iPad"])
+			{
+				// iPad in iPhone compatibility mode will return a scale factor of 2.0
+				// when in 2x zoom, which leads to false positives and bugs.
+				scale = 1.0;
+			}
+			else
 			{
 				scale = [UIScreen mainScreen].scale;
 			}

@@ -37,6 +37,8 @@ import org.w3c.dom.NamedNodeMap;
 import org.w3c.dom.Node;
 import org.w3c.dom.NodeList;
 
+import android.content.Intent;
+
 public class StatusnetModule extends TiModule {
 
     public StatusnetModule(TiContext context) {
@@ -92,5 +94,25 @@ public class StatusnetModule extends TiModule {
             }
         }
         return matches.toArray();
+    }
+
+    /**
+     * Offer some text to be shared to any app that takes the 'send' intent
+     * for text/plain.
+     *
+     * Fun fact: the only reason this can't be done with EmailDialog as is
+     * is the hardcoded MIME type. :)
+     *
+     * When the android_native_refactor branch lands, it should be possible
+     * to do this directly from within JS code.
+     */
+    public void shareText(String prompt, String text) {
+        Intent send = new Intent(Intent.ACTION_SEND);
+        send.setType("text/plain");
+        send.putExtra(Intent.EXTRA_TEXT, text);
+
+        Intent chooser = Intent.createChooser(send, prompt);
+
+        getTiContext().getActivity().startActivity(chooser);
     }
 }

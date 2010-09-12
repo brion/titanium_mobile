@@ -15,8 +15,14 @@ import org.appcelerator.titanium.util.TiConvert;
 import org.appcelerator.titanium.util.TiUIHelper;
 import org.appcelerator.titanium.view.TiUIView;
 
+import android.text.Editable;
+import android.text.Html;
 import android.text.InputType;
+import android.text.method.KeyListener;
+import android.text.util.Linkify;
 import android.view.Gravity;
+import android.view.KeyEvent;
+import android.view.View;
 import android.widget.TextView;
 
 public class TiUILabel extends TiUIView
@@ -33,6 +39,8 @@ public class TiUILabel extends TiUIView
 		tv.setGravity(Gravity.CENTER_VERTICAL | Gravity.LEFT);
 		tv.setPadding(0, 0, 0, 0);
 		tv.setInputType(InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_FLAG_MULTI_LINE);
+		tv.setKeyListener(null);
+		tv.setFocusable(false);
 		setNativeView(tv);
 	}
 
@@ -43,7 +51,9 @@ public class TiUILabel extends TiUIView
 
 		TextView tv = (TextView) getNativeView();
 		// Only accept one, prefer text to title.
-		if (d.containsKey("text")) {
+		if (d.containsKey("html")) {
+			tv.setText(Html.fromHtml(TiConvert.toString(d, "html")), TextView.BufferType.SPANNABLE);
+		} else if (d.containsKey("text")) {
 			tv.setText(TiConvert.toString(d,"text"));
 		} else if (d.containsKey("title")) { //TODO this may not need to be supported.
 			tv.setText(TiConvert.toString(d,"title"));
@@ -60,23 +70,25 @@ public class TiUILabel extends TiUIView
 		}
 		if (d.containsKey("textAlign")) {
 			String textAlign = d.getString("textAlign");
-			setAlignment(tv, textAlign);
+			TiUIHelper.setAlignment(tv, textAlign, null);
 		}
+		if (d.containsKey("verticalAlign")) {
+			String verticalAlign = d.getString("verticalAlign");
+			TiUIHelper.setAlignment(tv, null, verticalAlign);
+		}
+		
+		// This needs to be the last operation.
+		linkifyIfEnabled(tv, d);
 		tv.invalidate();
 	}
 
-	private void setAlignment(TextView tv, String textAlign) {
-		if ("left".equals(textAlign)) {
-			tv.setGravity(Gravity.CENTER_VERTICAL | Gravity.LEFT);
-		} else if ("center".equals(textAlign)) {
-			tv.setGravity(Gravity.CENTER_VERTICAL | Gravity.CENTER_HORIZONTAL);
-		} else if ("right".equals(textAlign)) {
-			tv.setGravity(Gravity.CENTER_VERTICAL | Gravity.RIGHT);
-		} else {
-			Log.w(LCAT, "Unsupported alignment: " + textAlign);
+	private void linkifyIfEnabled(TextView tv, TiDict d)
+	{
+		if (d.containsKey("autoLink")) {
+		    Linkify.addLinks(tv,TiConvert.toInt(d, "autoLink"));
 		}
 	}
-
+	
 	@Override
 	public void propertyChanged(String key, Object oldValue, Object newValue, TiProxy proxy)
 	{
@@ -84,19 +96,29 @@ public class TiUILabel extends TiUIView
 			Log.d(LCAT, "Property: " + key + " old: " + oldValue + " new: " + newValue);
 		}
 		TextView tv = (TextView) getNativeView();
-		if (key.equals("text")) {
+		if (key.equals("html")) {
+			tv.setText(Html.fromHtml(TiConvert.toString(newValue)), TextView.BufferType.SPANNABLE);
+			linkifyIfEnabled(tv, proxy.getDynamicProperties());
+			tv.requestLayout();
+		} else if (key.equals("text") || key.equals("title")) {
 			tv.setText(TiConvert.toString(newValue));
+			linkifyIfEnabled(tv, proxy.getDynamicProperties());
 			tv.requestLayout();
 		} else if (key.equals("color")) {
 			tv.setTextColor(TiConvert.toColor((String) newValue));
 		} else if (key.equals("highlightedColor")) {
 			tv.setHighlightColor(TiConvert.toColor((String) newValue));
 		} else if (key.equals("textAlign")) {
-			setAlignment(tv, TiConvert.toString(newValue));
+			TiUIHelper.setAlignment(tv, TiConvert.toString(newValue), null);
+			tv.requestLayout();
+		} else if (key.equals("verticalAlign")) {
+			TiUIHelper.setAlignment(tv, null, TiConvert.toString(newValue));
 			tv.requestLayout();
 		} else if (key.equals("font")) {
 			TiUIHelper.styleText(tv, (TiDict) newValue);
 			tv.requestLayout();
+		} else if (key.equals("autoLink")) {
+			Linkify.addLinks(tv, TiConvert.toInt(newValue));
 		} else {
 			super.propertyChanged(key, oldValue, newValue, proxy);
 		}

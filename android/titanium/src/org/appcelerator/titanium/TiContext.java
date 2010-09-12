@@ -12,7 +12,9 @@ import java.lang.ref.WeakReference;
 import java.net.URI;
 import java.net.URISyntaxException;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.Map.Entry;
@@ -23,6 +25,7 @@ import org.appcelerator.titanium.bridge.OnEventListenerChange;
 import org.appcelerator.titanium.io.TiBaseFile;
 import org.appcelerator.titanium.io.TiFileFactory;
 import org.appcelerator.titanium.kroll.KrollBridge;
+import org.appcelerator.titanium.kroll.KrollCallback;
 import org.appcelerator.titanium.kroll.KrollContext;
 import org.appcelerator.titanium.util.Log;
 import org.appcelerator.titanium.util.TiActivitySupport;
@@ -67,7 +70,7 @@ public class TiContext implements TiEvaluator, ITiMenuDispatcherListener, ErrorR
 	private AtomicInteger listenerIdGenerator;
 
 	private ArrayList<WeakReference<OnEventListenerChange>> eventChangeListeners;
-	private ArrayList<WeakReference<OnLifecycleEvent>> lifecycleListeners;
+	private List<WeakReference<OnLifecycleEvent>> lifecycleListeners;
 	private OnMenuEvent menuEventListener;
 	private WeakReference<OnConfigurationChanged> weakConfigurationChangedListeners;
 	private HashMap<String,WeakReference<TiModule>> modules = new HashMap<String,WeakReference<TiModule>>();
@@ -133,7 +136,8 @@ public class TiContext implements TiEvaluator, ITiMenuDispatcherListener, ErrorR
 		this.listenerIdGenerator = new AtomicInteger(0);
 		this.eventListeners = new HashMap<String, HashMap<Integer,TiListener>>();
 		eventChangeListeners = new ArrayList<WeakReference<OnEventListenerChange>>();
-		lifecycleListeners = new ArrayList<WeakReference<OnLifecycleEvent>>();
+		//lifecycleListeners = new ArrayList<WeakReference<OnLifecycleEvent>>();
+		lifecycleListeners = Collections.synchronizedList(new ArrayList<WeakReference<OnLifecycleEvent>>());
 		if (baseUrl == null) {
 			this.baseUrl = "app://";
 		} else {
@@ -455,6 +459,37 @@ public class TiContext implements TiEvaluator, ITiMenuDispatcherListener, ErrorR
 			throw new IllegalStateException("removeEventListener expects a non-null eventName");
 		}
 	}
+	
+	public void removeEventListenersFromContext(TiContext listeningContext)
+	{
+		if (eventListeners == null) {
+			return;
+		}
+		for (String eventName : eventListeners.keySet()) {
+			HashMap<Integer, TiListener> listeners = eventListeners.get(eventName);
+			if (listeners != null) {
+				ArrayList<Integer> toDelete = null;
+				for (Entry<Integer, TiListener>entry :  listeners.entrySet()) {
+					TiListener l = entry.getValue();
+					if (l.listener instanceof KrollCallback) {
+						KrollCallback kc = (KrollCallback) l.listener;
+						if (kc != null && kc.isWithinTiContext(listeningContext)) {
+							if (toDelete == null) {
+								toDelete = new ArrayList<Integer>();
+							}
+							toDelete.add(entry.getKey());
+						}
+					}
+				}
+				if (toDelete != null) {
+					for (Integer id  : toDelete) {
+						removeEventListener(eventName, id.intValue());
+					}
+				}
+			}
+			
+		}
+	}
 
 	public boolean hasAnyEventListener(String eventName)
 	{
@@ -550,12 +585,14 @@ public class TiContext implements TiEvaluator, ITiMenuDispatcherListener, ErrorR
 
 	public void removeOnLifecycleEventListener(OnLifecycleEvent listener)
 	{
-		for (WeakReference<OnLifecycleEvent> ref : lifecycleListeners) {
-			OnLifecycleEvent l = ref.get();
-			if (l != null) {
-				if (l.equals(listener)) {
-					eventChangeListeners.remove(ref);
-					break;
+		synchronized(lifecycleListeners) {
+			for (WeakReference<OnLifecycleEvent> ref : lifecycleListeners) {
+				OnLifecycleEvent l = ref.get();
+				if (l != null) {
+					if (l.equals(listener)) {
+						eventChangeListeners.remove(ref);
+						break;
+					}
 				}
 			}
 		}
@@ -623,76 +660,86 @@ public class TiContext implements TiEvaluator, ITiMenuDispatcherListener, ErrorR
 
 	public void dispatchOnStart()
 	{
-		for(WeakReference<OnLifecycleEvent> ref : lifecycleListeners) {
-			OnLifecycleEvent listener = ref.get();
-			if (listener != null) {
-				try {
-					listener.onStart();
-				} catch (Throwable t) {
-					Log.e(LCAT, "Error dispatching onStart  event: " + t.getMessage(), t);
+		synchronized(lifecycleListeners) {
+			for(WeakReference<OnLifecycleEvent> ref : lifecycleListeners) {
+				OnLifecycleEvent listener = ref.get();
+				if (listener != null) {
+					try {
+						listener.onStart();
+					} catch (Throwable t) {
+						Log.e(LCAT, "Error dispatching onStart  event: " + t.getMessage(), t);
+					}
+				} else {
+					Log.w(LCAT, "lifecycleListener has been garbage collected");
 				}
-			} else {
-				Log.w(LCAT, "lifecycleListener has been garbage collected");
 			}
 		}
 	}
 
 	public void dispatchOnResume() {
-		for(WeakReference<OnLifecycleEvent> ref : lifecycleListeners) {
-			OnLifecycleEvent listener = ref.get();
-			if (listener != null) {
-				try {
-					listener.onResume();
-				} catch (Throwable t) {
-					Log.e(LCAT, "Error dispatching onResume  event: " + t.getMessage(), t);
+		synchronized(lifecycleListeners) {
+			for(WeakReference<OnLifecycleEvent> ref : lifecycleListeners) {
+				OnLifecycleEvent listener = ref.get();
+				if (listener != null) {
+					try {
+						listener.onResume();
+					} catch (Throwable t) {
+						Log.e(LCAT, "Error dispatching onResume  event: " + t.getMessage(), t);
+					}
+				} else {
+					Log.w(LCAT, "lifecycleListener has been garbage collected");
 				}
-			} else {
-				Log.w(LCAT, "lifecycleListener has been garbage collected");
 			}
 		}
 	}
 
 	public void dispatchOnPause() {
-		for(WeakReference<OnLifecycleEvent> ref : lifecycleListeners) {
-			OnLifecycleEvent listener = ref.get();
-			if (listener != null) {
-				try {
-					listener.onPause();
-				} catch (Throwable t) {
-					Log.e(LCAT, "Error dispatching onPause  event: " + t.getMessage(), t);
+		synchronized (lifecycleListeners) {
+			for(WeakReference<OnLifecycleEvent> ref : lifecycleListeners) {
+				OnLifecycleEvent listener = ref.get();
+				if (listener != null) {
+					try {
+						listener.onPause();
+					} catch (Throwable t) {
+						Log.e(LCAT, "Error dispatching onPause  event: " + t.getMessage(), t);
+					}
+				} else {
+					Log.w(LCAT, "lifecycleListener has been garbage collected");
 				}
-			} else {
-				Log.w(LCAT, "lifecycleListener has been garbage collected");
 			}
 		}
 	}
 
 	public void dispatchOnStop() {
-		for(WeakReference<OnLifecycleEvent> ref : lifecycleListeners) {
-			OnLifecycleEvent listener = ref.get();
-			if (listener != null) {
-				try {
-					listener.onStop();
-				} catch (Throwable t) {
-					Log.e(LCAT, "Error dispatching onStop  event: " + t.getMessage(), t);
+		synchronized(lifecycleListeners) {
+			for(WeakReference<OnLifecycleEvent> ref : lifecycleListeners) {
+				OnLifecycleEvent listener = ref.get();
+				if (listener != null) {
+					try {
+						listener.onStop();
+					} catch (Throwable t) {
+						Log.e(LCAT, "Error dispatching onStop  event: " + t.getMessage(), t);
+					}
+				} else {
+					Log.w(LCAT, "lifecycleListener has been garbage collected");
 				}
-			} else {
-				Log.w(LCAT, "lifecycleListener has been garbage collected");
 			}
 		}
 	}
 
 	public void dispatchOnDestroy() {
-		for(WeakReference<OnLifecycleEvent> ref : lifecycleListeners) {
-			OnLifecycleEvent listener = ref.get();
-			if (listener != null) {
-				try {
-					listener.onDestroy();
-				} catch (Throwable t) {
-					Log.e(LCAT, "Error dispatching onDestroy  event: " + t.getMessage(), t);
+		synchronized(lifecycleListeners) {
+			for(WeakReference<OnLifecycleEvent> ref : lifecycleListeners) {
+				OnLifecycleEvent listener = ref.get();
+				if (listener != null) {
+					try {
+						listener.onDestroy();
+					} catch (Throwable t) {
+						Log.e(LCAT, "Error dispatching onDestroy  event: " + t.getMessage(), t);
+					}
+				} else {
+					Log.w(LCAT, "lifecycleListener has been garbage collected");
 				}
-			} else {
-				Log.w(LCAT, "lifecycleListener has been garbage collected");
 			}
 		}
 	}
@@ -825,5 +872,31 @@ public class TiContext implements TiEvaluator, ITiMenuDispatcherListener, ErrorR
 	public void cacheModule(String name, TiModule m)
 	{
 		modules.put(name, new WeakReference<TiModule>(m));
+	}
+	
+	public void release()
+	{
+		getTiApp().removeEventListenersFromContext(this);
+
+		if (tiEvaluator != null && tiEvaluator instanceof KrollBridge)
+		{
+			((KrollBridge)tiEvaluator).release();
+			tiEvaluator = null;
+		}
+		
+		if (lifecycleListeners != null) {
+			lifecycleListeners.clear();
+		}
+		if (eventChangeListeners != null) {
+			eventChangeListeners.clear();
+		}
+		if (eventListeners != null) {
+			eventListeners.clear();
+		}
+		if (modules != null) {
+			modules.clear();
+		}
+		menuEventListener = null;
+		
 	}
 }

@@ -12,13 +12,8 @@ import java.lang.reflect.Constructor;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import java.util.Date;
-import java.util.Map;
-import java.util.HashMap;
 import java.util.Iterator;
-
-import org.json.JSONArray;
-import org.json.JSONException;
-import org.json.JSONObject;
+import java.util.Map;
 
 import org.appcelerator.titanium.ContextSpecific;
 import org.appcelerator.titanium.TiApplication;
@@ -29,10 +24,15 @@ import org.appcelerator.titanium.TiProxy;
 import org.appcelerator.titanium.kroll.KrollMethod.KrollMethodType;
 import org.appcelerator.titanium.util.Log;
 import org.appcelerator.titanium.util.TiConfig;
+import org.json.JSONArray;
+import org.json.JSONException;
+import org.json.JSONObject;
 import org.mozilla.javascript.Context;
 import org.mozilla.javascript.Function;
+import org.mozilla.javascript.NativeJavaObject;
 import org.mozilla.javascript.Scriptable;
 import org.mozilla.javascript.ScriptableObject;
+import org.mozilla.javascript.Undefined;
 
 public class KrollObject extends ScriptableObject
 {
@@ -139,7 +139,9 @@ public class KrollObject extends ScriptableObject
 				put(name, this, o);
 				((TiModule) p).postCreate();
 			}
-		} else {
+		} 
+		
+		if (o.equals(NOT_FOUND)) {
 			if (DBG) {
 				Log.d(LCAT, "Start: " + start.getClassName() + " looking for method:" + name);
 			}
@@ -306,7 +308,7 @@ public class KrollObject extends ScriptableObject
 	{
 		// dynamic property
 		Object o = null;
-
+		
 		Method getMethod = (Method) loadMethod(target.getClass(), "getDynamicValue");
 		Method setMethod = (Method) loadMethod(target.getClass(), "setDynamicValue");
 		
@@ -603,6 +605,13 @@ public class KrollObject extends ScriptableObject
 			} else if (svalue.getClassName().equals("Date")) {
 				double time = (Double) ScriptableObject.callMethod(svalue, "getTime", new Object[0]);
 				o = new Date((long)time);
+			} else if (svalue.getClassName().equals("Error")) {
+				if (svalue.has("javaException", svalue)) {
+					NativeJavaObject exception = (NativeJavaObject) svalue.get("javaException", svalue);
+					o = exception.unwrap();
+				} else {
+					o = svalue.get("message", svalue);
+				}
 			} else {
 				TiDict args = new TiDict();
 				o = args;
@@ -644,7 +653,7 @@ public class KrollObject extends ScriptableObject
 
 	private boolean isArrayLike(Scriptable svalue) {
 		// some objects have length() methods, so just check the value?
-		return svalue.has("length", svalue) && svalue.get("length", svalue) instanceof Number;
+		return svalue.has("length", svalue) && svalue.get("length", svalue) instanceof Number && !(svalue instanceof KrollObject);
 	}
 
 	private Object[] toArray(Scriptable svalue)
@@ -659,6 +668,14 @@ public class KrollObject extends ScriptableObject
 			a[i] = toNative(v, Object.class);
 		}
 		return a;
+	}
+	
+	public static Object asJSUndefined(KrollContext kroll) {
+		return Context.javaToJS(Undefined.instance, kroll.getScope());
+	}
+	
+	public static Object asUndefined() {
+		return Undefined.instance;
 	}
 	
 	@SuppressWarnings("serial")
@@ -786,12 +803,15 @@ public class KrollObject extends ScriptableObject
 				jsArray[i] = fromNative(Array.get(value, i), kroll);
 			}
 
-			o = Context.getCurrentContext().newObject(kroll.getScope(), "Array", jsArray);
+			o = Context.getCurrentContext().newArray(kroll.getScope(), jsArray);
 		}
 		else if (value == JSONObject.NULL || value.getClass().equals(JSONObject.NULL.getClass()))
 		{
 			return Context.javaToJS(null, kroll.getScope());
 		} 
+		else if (value instanceof KrollCallback) {
+			return ((KrollCallback)value).toJSFunction();
+		}
 		else {
 			o = new KrollObject(kroll, value);
 		}

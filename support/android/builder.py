@@ -32,7 +32,7 @@ def pipe(args1,args2):
 	p2 = subprocess.Popen(args2, stdin=p1.stdout, stdout=subprocess.PIPE)
 	return p2.communicate()[0]
 
-def read_properties(propFile):
+def read_properties(propFile, separator=":= "):
 	propDict = dict()
 	for propLine in propFile:
 		propDef = propLine.strip()
@@ -40,10 +40,10 @@ def read_properties(propFile):
 			continue
 		if propDef[0] in ( '!', '#' ):
 			continue
-		punctuation= [ propDef.find(c) for c in ':= ' ] + [ len(propDef) ]
+		punctuation= [ propDef.find(c) for c in separator ] + [ len(propDef) ]
 		found= min( [ pos for pos in punctuation if pos != -1 ] )
 		name= propDef[:found].rstrip()
-		value= propDef[found:].lstrip(":= ").rstrip()
+		value= propDef[found:].lstrip(separator).rstrip()
 		propDict[name]= value
 	propFile.close()
 	return propDict
@@ -83,7 +83,7 @@ class Builder(object):
 		
 		# start in 1.4, you no longer need the build/android directory
 		# if missing, we'll create it on the fly
-		if not os.path.exists(self.project_dir):
+		if not os.path.exists(self.project_dir) or not os.path.exists(os.path.join(self.project_dir,'AndroidManifest.xml')):
 			print "[INFO] Detected missing project but that's OK. re-creating it..."
 			android_creator = Android(name,app_id,self.sdk,None)
 			android_creator.create(os.path.join(project_dir,'..'))
@@ -418,6 +418,12 @@ class Builder(object):
 			'Contacts.addContact' : CONTACTS_PERMISSION,
 			'Contacts.getAllContacts' : CONTACTS_PERMISSION,
 			'Contacts.showContactPicker' : CONTACTS_PERMISSION,
+			'Contacts.showContacts' : CONTACTS_PERMISSION,
+			'Contacts.getPersonByID' : CONTACTS_PERMISSION,
+			'Contacts.getPeopleWithName' : CONTACTS_PERMISSION,
+			'Contacts.getAllPeople' : CONTACTS_PERMISSION,
+			'Contacts.getAllGroups' : CONTACTS_PERMISSION,
+			'Contacts.getGroupByID' : CONTACTS_PERMISSION,
 		}
 		
 		VIDEO_ACTIVITY = """<activity
@@ -763,6 +769,20 @@ class Builder(object):
 		if platform.system() == "Windows":
 			run.run([self.sdk.get_adb(), "start-server"], True, ignore_output=True)
 		
+		ti_version_file = os.path.join(self.support_dir, '..', 'version.txt')
+		if os.path.exists(ti_version_file):
+			ti_version_info = read_properties(open(ti_version_file, 'r'), '=')
+			if not ti_version_info is None and 'version' in ti_version_info:
+				ti_version_string = 'Titanium SDK version: %s' % ti_version_info['version']
+				if 'timestamp' in ti_version_info or 'githash' in ti_version_info:
+					ti_version_string += ' ('
+					if 'timestamp' in ti_version_info:
+						ti_version_string += '%s' % ti_version_info['timestamp']
+					if 'githash' in ti_version_info:
+						ti_version_string += ' %s' % ti_version_info['githash']
+					ti_version_string += ')'
+
+				info(ti_version_string)
 		
 		if deploy_type == 'development':
 			self.wait_for_device('e')

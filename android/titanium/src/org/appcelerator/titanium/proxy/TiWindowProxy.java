@@ -131,6 +131,19 @@ public abstract class TiWindowProxy extends TiViewProxy
 		result.getResult(); // Don't care about result, just synchronizing.
 	}
 
+	public void closeFromActivity() {
+		if (!opened) {
+			return;
+		}
+		releaseViews();
+		opened = false;
+		TiContext context = getTiContext();
+		if (creatingContext != null && context != null && !creatingContext.equals(context)) {
+			switchToCreatingContext();
+		}
+
+	}
+	
 	public void setTabProxy(TiViewProxy tabProxy) {
 		this.tab = tabProxy;
 	}

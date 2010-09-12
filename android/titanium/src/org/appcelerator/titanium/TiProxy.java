@@ -30,7 +30,8 @@ public class TiProxy implements Handler.Callback, TiDynamicMethod, OnEventListen
 
 	protected static final int MSG_LAST_ID = 999;
 
-	private TiContext tiContext, creatingContext;
+	private TiContext tiContext;
+	protected TiContext creatingContext;
 	private Handler uiHandler;
 	private CountDownLatch waitForHandler;
 
@@ -104,7 +105,9 @@ public class TiProxy implements Handler.Callback, TiDynamicMethod, OnEventListen
 
 	public void setModelListener(TiProxyListener modelListener) {
 		this.modelListener = modelListener;
-		this.modelListener.processProperties(dynprops != null ? new TiDict(dynprops) : new TiDict());
+		if (modelListener != null) {
+			this.modelListener.processProperties(dynprops != null ? new TiDict(dynprops) : new TiDict());
+		}
 	}
 
 	public TiContext switchContext(TiContext tiContext) {
@@ -119,6 +122,13 @@ public class TiProxy implements Handler.Callback, TiDynamicMethod, OnEventListen
 		}
 		return oldContext;
 	}
+	
+	public void switchToCreatingContext() {
+		if (creatingContext != null && tiContext != null && !creatingContext.equals(tiContext)) {
+			switchContext(creatingContext);
+		}
+	}
+	
 	protected Handler getUIHandler() {
 		try {
 			waitForHandler.await();
@@ -127,7 +137,7 @@ public class TiProxy implements Handler.Callback, TiDynamicMethod, OnEventListen
 		}
 		return uiHandler;
 	}
-
+	
 	public TiContext getTiContext() {
 		return tiContext;
 	}
@@ -232,6 +242,14 @@ public class TiProxy implements Handler.Callback, TiDynamicMethod, OnEventListen
 			ctx.removeEventListener(eventName, listener);
 		}
 	}
+	
+	public void removeEventListenersFromContext(TiContext listeningContext)
+	{
+		TiContext ctx = getTiContext();
+		if (ctx != null) {
+			ctx.removeEventListenersFromContext(listeningContext);
+		}
+	}
 
 	protected void setProperties(TiDict options)
 	{
@@ -284,9 +302,9 @@ public class TiProxy implements Handler.Callback, TiDynamicMethod, OnEventListen
 
 	public boolean hasListeners(String eventName)
 	{
-		boolean hasListeners = getTiContext().hasAnyEventListener(eventName);
+		boolean hasListeners = getTiContext().hasEventListener(eventName, this);
 		if (creatingContext != null) {
-			hasListeners = hasListeners || creatingContext.hasAnyEventListener(eventName);
+			hasListeners = hasListeners || creatingContext.hasEventListener(eventName, this);
 		}
 		return hasListeners;
 	}

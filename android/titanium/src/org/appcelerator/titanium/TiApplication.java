@@ -61,7 +61,7 @@ public class TiApplication extends Application
 	protected TiAnalyticsModel analyticsModel;
 	protected Intent analyticsIntent;
 	private static long lastAnalyticsTriggered = 0;
-	private String buildVersion, buildTimestamp;
+	private String buildVersion, buildTimestamp, buildHash;
 
 	public TiApplication() {
 		Log.checkpoint("checkpoint, app created.");
@@ -74,6 +74,7 @@ public class TiApplication extends Application
 	private void getBuildVersion() {
 		buildVersion = "1.0";
 		buildTimestamp = "N/A";
+		buildHash = "N/A";
 		InputStream versionStream = getClass().getClassLoader().getResourceAsStream("org/appcelerator/titanium/build.properties");
 		if (versionStream != null) {
 			Properties properties = new Properties();
@@ -85,6 +86,9 @@ public class TiApplication extends Application
 				if (properties.containsKey("build.timestamp")) {
 					buildTimestamp = properties.getProperty("build.timestamp");
 				}
+				if (properties.containsKey("build.githash")) {
+					buildHash = properties.getProperty("build.githash");
+				}
 			} catch (IOException e) {}
 		}
 	}
@@ -93,6 +97,9 @@ public class TiApplication extends Application
 	public void onCreate()
 	{
 		super.onCreate();
+		if (DBG) {
+			Log.d(LCAT, "Application onCreate");
+		}
 
 		final UncaughtExceptionHandler defaultHandler = Thread.getDefaultUncaughtExceptionHandler();
 		Thread.setDefaultUncaughtExceptionHandler(new UncaughtExceptionHandler() {
@@ -116,7 +123,7 @@ public class TiApplication extends Application
 
 		appProperties = new TiProperties(getApplicationContext(), "titanium", false);
 		systemProperties = new TiProperties(getApplicationContext(), "system", true);
-		systemProperties.setString("ti.version", buildVersion);
+		//systemProperties.setString("ti.version", buildVersion); // was always setting "1.0"
 	}
 
 	public void setRootActivity(TiRootActivity rootActivity)
@@ -260,6 +267,14 @@ public class TiApplication extends Application
 		}
 		return handled;
 	}
+	
+	public void removeEventListenersFromContext(TiContext listeningContext)
+	{
+		for (TiProxy appEventProxy : appEventProxies)
+		{
+			appEventProxy.removeEventListenersFromContext(listeningContext);
+		}
+	}
 
 	public TiProperties getAppProperties()
 	{
@@ -387,5 +402,9 @@ public class TiApplication extends Application
 
 	public String getTiBuildTimestamp() {
 		return buildTimestamp;
+	}
+	
+	public String getTiBuildHash() {
+		return buildHash;
 	}
 }

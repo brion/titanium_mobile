@@ -10,12 +10,16 @@ import java.lang.ref.SoftReference;
 import java.lang.ref.WeakReference;
 import java.util.ArrayList;
 
+import org.appcelerator.titanium.kroll.KrollCallback;
 import org.appcelerator.titanium.proxy.TiWindowProxy;
+import org.appcelerator.titanium.util.AsyncResult;
 import org.appcelerator.titanium.util.Log;
 import org.appcelerator.titanium.util.TiActivityResultHandler;
 import org.appcelerator.titanium.util.TiActivitySupport;
 import org.appcelerator.titanium.util.TiActivitySupportHelper;
 import org.appcelerator.titanium.util.TiConfig;
+import org.appcelerator.titanium.util.TiConvert;
+import org.appcelerator.titanium.util.TiUIHelper;
 import org.appcelerator.titanium.view.ITiWindowHandler;
 import org.appcelerator.titanium.view.TiCompositeLayout;
 
@@ -27,6 +31,7 @@ import android.os.Handler;
 import android.os.Message;
 import android.os.Messenger;
 import android.os.RemoteException;
+import android.view.KeyEvent;
 import android.view.Menu;
 import android.view.MenuItem;
 import android.view.View;
@@ -47,6 +52,7 @@ public class TiActivity extends Activity
 	protected Handler handler;
 	protected ArrayList<WeakReference<TiContext>> contexts;
 	protected SoftReference<ITiMenuDispatcherListener> softMenuDispatcher;
+	protected boolean mustFireInitialFocus;
 
 	public TiActivity() {
 		super();
@@ -57,7 +63,10 @@ public class TiActivity extends Activity
     @Override
     public void onCreate(Bundle savedInstanceState)
     {
-        super.onCreate(savedInstanceState);
+//        super.onCreate(savedInstanceState);
+    	if (DBG) {
+    		Log.d(LCAT, "Activity onCreate");
+    	}
         handler = new Handler();
 
         Intent intent = getIntent();
@@ -68,6 +77,8 @@ public class TiActivity extends Activity
         Messenger messenger = null;
         Integer messageId = null;
         boolean vertical = false;
+        boolean hasSoftInputMode = false;
+        int softInputMode = -1;
 
         if (intent != null) {
         	if (intent.hasExtra("modal")) {
@@ -86,18 +97,22 @@ public class TiActivity extends Activity
         	if (intent.hasExtra("vertical")) {
         		vertical = intent.getBooleanExtra("vertical", vertical);
         	}
+        	if (intent.hasExtra("windowSoftInputMode")) {
+        		hasSoftInputMode = true;
+        		softInputMode = intent.getIntExtra("windowSoftInputMode", WindowManager.LayoutParams.SOFT_INPUT_ADJUST_UNSPECIFIED);
+        	}
         }
 
         layout = new TiCompositeLayout(this, vertical);
 
-        if (modal) {
-        	setTheme(android.R.style.Theme_Translucent_NoTitleBar_Fullscreen);
-        } else {
+        super.onCreate(savedInstanceState);
+            
+        if (!modal) {
 	        if (fullscreen) {
 	        	getWindow().setFlags(WindowManager.LayoutParams.FLAG_FULLSCREEN,
 	                    WindowManager.LayoutParams.FLAG_FULLSCREEN);
 	        }
-
+	        
 	        if (navbar) {
 	        	this.requestWindowFeature(Window.FEATURE_LEFT_ICON); // TODO Keep?
 		        this.requestWindowFeature(Window.FEATURE_RIGHT_ICON);
@@ -106,7 +121,18 @@ public class TiActivity extends Activity
 	        } else {
 	           	this.requestWindowFeature(Window.FEATURE_NO_TITLE);
 	        }
+        } else {
+        	int flags = WindowManager.LayoutParams.FLAG_BLUR_BEHIND;
+        	getWindow().setFlags(flags,flags);
         }
+        
+        if (hasSoftInputMode) {
+        	if (DBG) {
+        		Log.d(LCAT, "windowSoftInputMode: " + softInputMode);
+        	}
+        	getWindow().setSoftInputMode(softInputMode);
+        }
+        
 
         setContentView(layout);
 
@@ -195,6 +221,73 @@ public class TiActivity extends Activity
 			contexts.remove(context);
 		}
 	}
+	
+	@Override
+	public boolean dispatchKeyEvent(KeyEvent event) 
+	{
+		boolean handled = false;
+		switch(event.getKeyCode()) {
+			case KeyEvent.KEYCODE_BACK : {
+				if (proxy.hasListeners("android:back")) {
+					if (event.getAction() == KeyEvent.ACTION_UP) {
+						proxy.fireEvent("android:back", null);
+					}
+					handled = true;
+				}
+				break;
+			}
+			case KeyEvent.KEYCODE_CAMERA : {
+				if (proxy.hasListeners("android:camera")) {
+					if (event.getAction() == KeyEvent.ACTION_UP) {
+						proxy.fireEvent("android:camera", null);
+					}
+					handled = true;
+				}										
+				break;
+			}
+			case KeyEvent.KEYCODE_FOCUS : {
+				if (proxy.hasListeners("android:focus")) {
+					if (event.getAction() == KeyEvent.ACTION_UP) {
+						proxy.fireEvent("android:focus", null);
+					}
+					handled = true;
+				}										
+				break;
+			}
+			case KeyEvent.KEYCODE_SEARCH : {
+				if (proxy.hasListeners("android:search")) {
+					if (event.getAction() == KeyEvent.ACTION_UP) {
+						proxy.fireEvent("android:search", null);
+					}
+					handled = true;
+				}										
+				break;
+			}
+			case KeyEvent.KEYCODE_VOLUME_UP : {
+				if (proxy.hasListeners("android:volup")) {
+					if (event.getAction() == KeyEvent.ACTION_UP) {
+						proxy.fireEvent("android:volup", null);
+					}
+					handled = true;
+				}										
+				break;
+			}
+			case KeyEvent.KEYCODE_VOLUME_DOWN : {
+				if (proxy.hasListeners("android:voldown")) {
+					if (event.getAction() == KeyEvent.ACTION_UP) {
+						proxy.fireEvent("android:voldown", null);
+					}
+					handled = true;
+				}										
+				break;
+			}
+		}
+			
+		if (!handled) {
+			handled = super.dispatchKeyEvent(event);
+		}
+		return handled; 
+	}
 
 	@Override
 	public boolean onCreateOptionsMenu(Menu menu)
@@ -246,6 +339,9 @@ public class TiActivity extends Activity
 	@Override
 	protected void onPause() {
 		super.onPause();
+		if (DBG) {
+			Log.d(LCAT, "Activity onPause");
+		}
 		((TiApplication) getApplication()).setWindowHandler(null);
 		((TiApplication) getApplication()).setCurrentActivity(this, null);
 
@@ -259,6 +355,9 @@ public class TiActivity extends Activity
 	@Override
 	protected void onResume() {
 		super.onResume();
+		if (DBG) {
+			Log.d(LCAT, "Activity onResume");
+		}
 		((TiApplication) getApplication()).setWindowHandler(this);
 		((TiApplication) getApplication()).setCurrentActivity(this, this);
 		for (WeakReference<TiContext> contextRef : contexts) {
@@ -271,6 +370,17 @@ public class TiActivity extends Activity
 	@Override
 	protected void onStart() {
 		super.onStart();
+		if (DBG) {
+			Log.d(LCAT, "Activity onStart");
+		}
+		updateTitle();
+		
+		if (proxy != null) {
+			proxy.fireEvent("focus", null);
+		} else {
+			mustFireInitialFocus = true;
+		}
+
 		for (WeakReference<TiContext> contextRef : contexts) {
 			if (contextRef.get() != null) {
 				contextRef.get().dispatchOnStart();
@@ -281,6 +391,13 @@ public class TiActivity extends Activity
 	@Override
 	protected void onStop() {
 		super.onStop();
+		if (DBG) {
+			Log.d(LCAT, "Activity onStop");
+		}
+		if (proxy != null) {
+			proxy.fireEvent("blur", null);
+		}
+
 		for (WeakReference<TiContext> contextRef : contexts) {
 			if (contextRef.get() != null) {
 				contextRef.get().dispatchOnStop();
@@ -292,14 +409,24 @@ public class TiActivity extends Activity
 	protected void onDestroy() {
 		super.onDestroy();
 		for (WeakReference<TiContext> contextRef : contexts) {
-			if (contextRef.get() != null) {
-				contextRef.get().dispatchOnDestroy();
+			TiContext ctx = contextRef.get();
+			if (ctx != null) {
+				ctx.dispatchOnDestroy();
+				ctx.release();
 			}
 		}
 		if (layout != null) {
 			Log.e(LCAT, "Layout cleanup.");
 			layout.removeAllViews();
+			layout = null;
 		}
+		
+		if (proxy != null) {
+			proxy.closeFromActivity();
+			proxy = null;
+		}
+		
+		handler = null;
 	}
 
 	@Override
@@ -316,7 +443,9 @@ public class TiActivity extends Activity
 			createdContext.get().dispatchEvent("close", data, proxy);
 		}
 
+		boolean animate = true;
 		Intent intent = getIntent();
+
 		if (intent != null) {
 			if (intent.getBooleanExtra("finishRoot", false)) {
 				if (getApplication() != null) {
@@ -329,9 +458,14 @@ public class TiActivity extends Activity
 					}
 				}
 			}
+			animate = intent.getBooleanExtra("animate", animate);
 		}
 
+
 		super.finish();
+		if (!animate) {
+			TiUIHelper.overridePendingTransition(this);
+		}
 	}
 
 	public void setCreatedContext(TiContext context) {
@@ -340,5 +474,38 @@ public class TiActivity extends Activity
 
 	public void setWindowProxy(TiWindowProxy proxy) {
 		this.proxy = proxy;
+		updateTitle();
+	}
+
+	public void fireInitialFocus() {
+		if (mustFireInitialFocus && proxy != null) {
+			mustFireInitialFocus = false;
+			proxy.fireEvent("focus", null);
+		}
+	}
+	
+	protected void updateTitle() {
+		if (proxy != null) {
+			if (proxy.hasDynamicValue("title")) {
+				String oldTitle = (String) getTitle();
+				String newTitle = TiConvert.toString(proxy.getDynamicValue("title"));
+				if (oldTitle == null) {
+					oldTitle = "";
+				}
+				if (newTitle == null) {
+					newTitle = "";
+				}
+				if (!newTitle.equals(oldTitle)) {
+					final String fnewTitle = newTitle;
+					runOnUiThread(new Runnable(){
+
+						@Override
+						public void run() {
+							setTitle(fnewTitle);							
+						}
+					});
+				}
+			}
+		}		
 	}
 }

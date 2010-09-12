@@ -32,7 +32,7 @@ public class TableViewModel
         public boolean hasHeader() {
             return headerText != null;
         }
-
+        
         public int index;
         public int sectionIndex;
         public int indexInSection;
@@ -60,6 +60,16 @@ public class TableViewModel
 
         viewModel = new ArrayList<Item>();
         dirty = true;
+    }
+    
+    public void release()
+    {
+    	if (viewModel != null) {
+    		viewModel.clear();
+    		viewModel = null;
+    	}
+    	tiContext = null;
+    	proxy = null;
     }
 
     private String classNameForRow(TableViewRowProxy rowProxy) {

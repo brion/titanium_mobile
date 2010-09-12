@@ -26,7 +26,7 @@
 
 #import "UIImage+Resize.h"
 
-#ifdef TARGET_IPHONE_SIMULATOR
+#if TARGET_IPHONE_SIMULATOR
 extern NSString * const TI_APPLICATION_RESOURCE_DIR;
 #endif
 
@@ -511,7 +511,7 @@ extern NSString * const TI_APPLICATION_RESOURCE_DIR;
 			NSRange range = [urlString rangeOfString:@"/" options:0 range:NSMakeRange(7, [urlString length]-7)];
 			if (range.location!=NSNotFound)
 			{
-				NSString *path = [(NSString *)CFURLCreateStringByAddingPercentEscapes(kCFAllocatorDefault, (CFStringRef)[urlString substringFromIndex:range.location], NULL, CFSTR(":[]@!$ '()*+,;\"<>%{}|\\^~`"), CFStringConvertNSStringEncodingToEncoding(NSUTF8StringEncoding)) autorelease];
+				NSString *path = [(NSString *)CFURLCreateStringByAddingPercentEscapes(kCFAllocatorDefault, (CFStringRef)[urlString substringFromIndex:range.location], CFSTR(":[]@!$ '()*+,;\"<>%{}|\\^~`"), NULL, CFStringConvertNSStringEncodingToEncoding(NSUTF8StringEncoding)) autorelease];
 				urlString = [NSString stringWithFormat:@"%@%@",[urlString substringToIndex:range.location],path];
 			}
 		}
@@ -1052,7 +1052,7 @@ extern NSString * const TI_APPLICATION_RESOURCE_DIR;
 			had_splash_removed = YES;
 			appurlstr = [appurlstr substringFromIndex:1];
 		}
-#ifdef TARGET_IPHONE_SIMULATOR
+#if TARGET_IPHONE_SIMULATOR
 		if (app==YES && had_splash_removed)
 		{
 			// on simulator we want to keep slash since it's coming from file

@@ -8,7 +8,6 @@ package ti.modules.titanium.ui;
 
 import java.lang.ref.WeakReference;
 import java.util.ArrayList;
-import java.util.concurrent.atomic.AtomicInteger;
 
 import org.appcelerator.titanium.TiActivity;
 import org.appcelerator.titanium.TiContext;
@@ -44,14 +43,13 @@ public class TabGroupProxy extends TiWindowProxy
 	protected static final int MSG_LAST_ID = MSG_FIRST_ID + 999;
 
 	private ArrayList<TabProxy> tabs;
-	private AtomicInteger idGenerator;
-	private TiTabActivity tta;
-	WeakReference<Activity> weakActivity;
+	private WeakReference<TiTabActivity> weakActivity;
 	String windowId;
+	Object initialActiveTab;
 
 	public TabGroupProxy(TiContext tiContext, Object[] args) {
 		super(tiContext, args);
-		idGenerator = new AtomicInteger(0);
+		initialActiveTab = null;
 	}
 
 	@Override
@@ -117,6 +115,23 @@ public class TabGroupProxy extends TiWindowProxy
 
 	private void handleAddTab(TabProxy tab)
 	{
+		String tag = TiConvert.toString(tab.getDynamicValue("tag"));
+		if (tag == null) {
+			String title = TiConvert.toString(tab.getDynamicValue("title"));
+			if (title == null) {
+				String icon = TiConvert.toString(tab.getDynamicValue("icon"));
+				if (icon == null) {
+					tag = tab.toString();					
+				} else {
+					tag = icon;
+				}
+			} else {
+				tag = title;
+			}
+			
+			tab.internalSetDynamicValue("tag", tag, false); // store in proxy
+		}
+		
 		tabs.add(tab);
 
 		if (peekView() != null) {
@@ -127,15 +142,27 @@ public class TabGroupProxy extends TiWindowProxy
 
 	private void addTabToGroup(TiUITabGroup tg, TabProxy tab)
 	{
+		TiTabActivity tta = weakActivity.get();
+		if (tta == null) {
+			if (DBG) {
+				Log.w(LCAT, "Could not add tab because tab activity no longer exists");
+			}
+		}
 		String title = (String) tab.getDynamicValue("title");
 		String icon = (String) tab.getDynamicValue("icon");
+		String tag = (String) tab.getDynamicValue("tag");
+
+		if (title == null) {
+			title = "";
+		}
+		
 		tab.setTabGroup(this);
 		final WindowProxy vp = (WindowProxy) tab.getDynamicValue("window");
 		vp.setTabGroupProxy(this);
 		vp.setTabProxy(tab);
 
-		if (title != null && vp != null) {
-			TabSpec tspec = tg.newTab(title);
+		if (tag != null && vp != null) {
+			TabSpec tspec = tg.newTab(tag);
 			if (icon == null) {
 				tspec.setIndicator(title);
 			} else {
@@ -144,7 +171,6 @@ public class TabGroupProxy extends TiWindowProxy
 				Drawable d = tfh.loadDrawable(path, false);
 				tspec.setIndicator(title, d);
 			}
-
 
 			Intent intent = new Intent(tta, TiActivity.class);
 			vp.fillIntentForTab(intent);
@@ -170,6 +196,10 @@ public class TabGroupProxy extends TiWindowProxy
 	{
 		//TODO skip multiple opens?
 		Log.i(LCAT, "handleOpen");
+		
+		if (hasDynamicValue("activeTab")) {
+			initialActiveTab = getDynamicValue("activeTab");
+		}
 
 		Activity activity = getTiContext().getActivity();
 		Intent intent = new Intent(activity, TiTabActivity.class);
@@ -179,14 +209,16 @@ public class TabGroupProxy extends TiWindowProxy
 
 	public void handlePostOpen(Activity activity)
 	{
-		this.tta = (TiTabActivity) activity; //TODO leak?
+		((TiTabActivity)activity).setTabGroupProxy(this);
+		this.weakActivity = new WeakReference<TiTabActivity>( (TiTabActivity) activity );
 		TiUITabGroup tg = (TiUITabGroup) view;
 		if (tabs != null) {
 			for(TabProxy tab : tabs) {
 				addTabToGroup(tg, tab);
 			}
 		}
-		getTiContext().getRootActivity().addWindow(windowId, view.getLayoutParams());
+		tg.changeActiveTab(initialActiveTab);
+
 		opened = true;
 	}
 
@@ -194,7 +226,7 @@ public class TabGroupProxy extends TiWindowProxy
 	protected void handleClose(TiDict options) {
 		Log.i(LCAT, "handleClose");
 		modelListener = null;
-		getTiContext().getRootActivity().closeWindow(windowId);
+		getTiContext().getActivity().finish();
 		releaseViews();
 		windowId = null;
 		view = null;
@@ -232,14 +264,13 @@ public class TabGroupProxy extends TiWindowProxy
 
 		int i = 0;
 		for(TabProxy t : tabs) {
-			String title = (String) t.getDynamicValue("title");
-			if (title.equals(id)) {
+			String tag = (String) t.getDynamicValue("tag");
+			if (tag.equals(id)) {
 				index = i;
 				break;
 			}
 			i += 1;
 		}
-
 		return index;
 	}
 
@@ -256,6 +287,7 @@ public class TabGroupProxy extends TiWindowProxy
 			}
 		}
 		intent.putExtra("finishRoot", activity.isTaskRoot());
+		
 		Messenger messenger = new Messenger(getUIHandler());
 		intent.putExtra("messenger", messenger);
 		intent.putExtra("messageId", MSG_FINISH_OPEN);
@@ -265,4 +297,21 @@ public class TabGroupProxy extends TiWindowProxy
 	public TiDict handleToImage() {
 		return TiUIHelper.viewToImage(getTiContext(), getTiContext().getActivity().getWindow().getDecorView());
 	}
+
+	@Override
+	public void releaseViews()
+	{
+		super.releaseViews();
+		if (tabs != null) {
+			synchronized (tabs) {
+				for (TabProxy t : tabs) {
+					t.setTabGroup(null);
+					t.releaseViews();
+				}
+			}
+		}
+		tabs.clear();
+	}
+
+	
 }

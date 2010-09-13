@@ -132,7 +132,7 @@ static NSString *mimeTypeToUTType(NSString *mimeType)
 		}
 		case CLIPBOARD_URI_LIST:
 		{
-			return board.URL;
+			return [board.URL absoluteString];
 		}
 		case CLIPBOARD_IMAGE:
 		{

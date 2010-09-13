@@ -12,7 +12,8 @@ var source = Titanium.UI.createTextField({
 	top:10,
 	left:10,
 	width:250,
-	hintText: 'type here'
+	hintText: 'type here',
+	borderStyle:Titanium.UI.INPUT_BORDERSTYLE_ROUNDED
 });
 win.add(source);
 
@@ -34,7 +35,8 @@ var dest = Titanium.UI.createTextField({
 	top:120,
 	left:10,
 	width:250,
-	hintText: 'paste here'
+	hintText: 'paste here',
+	borderStyle:Titanium.UI.INPUT_BORDERSTYLE_ROUNDED
 });
 win.add(dest);
 

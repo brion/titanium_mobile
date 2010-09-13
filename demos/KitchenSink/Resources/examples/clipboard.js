@@ -11,7 +11,8 @@ var source = Titanium.UI.createTextField({
 	height:45,
 	top:10,
 	left:10,
-	width:250
+	width:250,
+	hintText: 'type here'
 });
 win.add(source);
 
@@ -32,7 +33,8 @@ var dest = Titanium.UI.createTextField({
 	height:45,
 	top:120,
 	left:10,
-	width:250
+	width:250,
+	hintText: 'paste here'
 });
 win.add(dest);
 
@@ -41,7 +43,7 @@ var paste = Titanium.UI.createButton({
 	height:40,
 	top:165,
 	left:10,
-	width:25
+	width:250
 });
 paste.addEventListener('click', function()
 {

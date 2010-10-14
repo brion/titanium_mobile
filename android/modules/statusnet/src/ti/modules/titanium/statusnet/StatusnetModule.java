@@ -24,10 +24,10 @@ package ti.modules.titanium.statusnet;
 
 import java.util.ArrayList;
 
+import org.appcelerator.kroll.KrollDict;
+import org.appcelerator.kroll.KrollModule;
+import org.appcelerator.kroll.annotations.Kroll;
 import org.appcelerator.titanium.TiContext;
-import org.appcelerator.titanium.TiDict;
-import org.appcelerator.titanium.TiModule;
-import org.appcelerator.titanium.kroll.KrollCallback;
 
 import ti.modules.titanium.xml.ElementProxy;
 import ti.modules.titanium.xml.NodeProxy;
@@ -39,7 +39,8 @@ import org.w3c.dom.NodeList;
 
 import android.content.Intent;
 
-public class StatusnetModule extends TiModule {
+@Kroll.module @Kroll.topLevel
+public class StatusnetModule extends KrollModule {
 
     public StatusnetModule(TiContext context) {
         super(context);
@@ -61,8 +62,9 @@ public class StatusnetModule extends TiModule {
      * Caller can then iterate over that list and make direct calls
      * within the JS context.
      */
-    public Object[] mapOverElementsHelper(Object parent, TiDict map) {
-        ArrayList<TiDict> matches = new ArrayList<TiDict>();
+    @Kroll.method
+    public Object[] mapOverElementsHelper(Object parent, KrollDict map) {
+        ArrayList<KrollDict> matches = new ArrayList<KrollDict>();
 
         NodeList list = ((NodeProxy)parent).getNode().getChildNodes();
         int last = list.getLength();
@@ -72,11 +74,11 @@ public class StatusnetModule extends TiModule {
                 String name = el.getNodeName();
                 Object target = map.get(name);
                 if (target != null) {
-                    TiDict dict = new TiDict();
+                    KrollDict dict = new KrollDict();
 
                     ElementProxy proxy = (ElementProxy)NodeProxy.getNodeProxy(getTiContext(), el);
 
-                    TiDict attribsDict = new TiDict();
+                    KrollDict attribsDict = new KrollDict();
                     NamedNodeMap attributes = el.getAttributes();
                     int numAttribs = attributes.getLength();
                     for (int j = 0; j < numAttribs; j++) {
@@ -106,6 +108,7 @@ public class StatusnetModule extends TiModule {
      * When the android_native_refactor branch lands, it should be possible
      * to do this directly from within JS code.
      */
+    @Kroll.method
     public void shareText(String prompt, String text) {
         Intent send = new Intent(Intent.ACTION_SEND);
         send.setType("text/plain");

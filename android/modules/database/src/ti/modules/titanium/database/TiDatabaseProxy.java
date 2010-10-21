@@ -95,22 +95,24 @@ public class TiDatabaseProxy extends KrollProxy
 			}
 		}
 		try {
-			if(sql.trim().toLowerCase().startsWith("select")) {
-				c = db.rawQuery(sql, newArgs);
-				if (c != null) {
+			c = db.rawQuery(sql, newArgs);
+			if (c != null) {
+				if (c.getColumnCount() == 0) {
+					// Most non-SELECT statements won't actually return data, but some
+					// such as PRAGMA do. For anything that doesn't return a data set,
+					// we'll return null here.
+					c.close();
+					rs = null;
+				} else {
 					rs = new TiResultSetProxy(getTiContext(), c);
 					if (rs.isValidRow()) {
 						rs.next(); // Position on first row if we have data.
 					}
-				} else {
-					rs = new TiResultSetProxy(getTiContext(), null); // because iPhone does it this way.
 				}
 			} else {
-				if (args != null) {
-					db.execSQL(sql, args);
-				} else {
-					db.execSQL(sql);
-				}
+				// When no *rows* are returned from a SELECT statement, we got back null here.
+				// Note: the docs don't support this. Is it correct?
+				rs = new TiResultSetProxy(getTiContext(), null); // because iPhone does it this way.
 			}
 		} catch (SQLException e) {
 			String msg = "Error executing sql: " + e.getMessage();

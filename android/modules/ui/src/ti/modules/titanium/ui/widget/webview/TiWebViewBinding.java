@@ -168,6 +168,7 @@ public class TiWebViewBinding {
 		
 		public void fireEvent(String event, String json)
 		{
+			Log.d(LCAT, "WebView called Ti.App.fireEvent: " + event + ", " + json);
 			try {
 				KrollDict dict = new KrollDict();
 				if (json != null && !json.equals("undefined")) {
@@ -181,11 +182,13 @@ public class TiWebViewBinding {
 		
 		public int addEventListener(String event, int id)
 		{
+			Log.d(LCAT, "WebView called Ti.App.addEventListener: " + event);
 			return module.addEventListener(event, new WebViewCallback(id));
 		}
 		
 		public void removeEventListener(String event, int id)
 		{
+			Log.d(LCAT, "WebView called Ti.App.removeEventListener: " + event);
 			module.removeEventListener(event, id);
 		}
 	}

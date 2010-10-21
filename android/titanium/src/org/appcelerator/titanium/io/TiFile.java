@@ -192,7 +192,7 @@ public class TiFile extends TiBaseFile
 	@Override
 	public double spaceAvailable()
 	{
-		return file.getFreeSpace();
+		return 99999999L;
 	}
 
 	@Override

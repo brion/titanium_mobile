@@ -3,7 +3,7 @@
 #
 # module builder script
 #
-import os, sys, shutil, tempfile, subprocess
+import os, sys, shutil, tempfile, subprocess, platform
 template_dir = os.path.abspath(os.path.dirname(sys._getframe(0).f_code.co_filename))
 android_support_dir = os.path.join(os.path.dirname(template_dir), 'android')
 top_support_dir = os.path.dirname(android_support_dir)
@@ -27,6 +27,10 @@ def print_emulator_line(line):
 				print "[DEBUG] %s" % s
 			sys.stdout.flush()
 
+def run_python(args, cwd=None):
+	args.insert(0, sys.executable)
+	return run(args, cwd=cwd)
+
 def run(args, cwd=None):
 	proc = run_pipe(args, cwd)
 	rc = None
@@ -36,8 +40,22 @@ def run(args, cwd=None):
 		if rc!=None: break
 	return rc
 
+def run_ant(project_dir):
+	build_xml = os.path.join(project_dir, 'build.xml')
+	ant = 'ant'
+	if 'ANT_HOME' in os.environ:
+		ant = os.path.join(os.environ['ANT_HOME'], 'bin', 'ant')
+	
+	if platform.system() == 'Windows':
+		ant_args = ['cmd.exe', '/C', ant+'.bat', '-f', build_xml]
+	else:
+		ant_args = [ant, '-f', build_xml]
+	
+	run(ant_args, cwd=project_dir)
+
 ignoreFiles = ['.gitignore', '.cvsignore', '.DS_Store'];
 ignoreDirs = ['.git','.svn','_svn','CVS'];
+android_sdk = None
 
 def copy_resources(source, target):
 	if not os.path.exists(os.path.expanduser(target)):
@@ -45,11 +63,11 @@ def copy_resources(source, target):
 	for root, dirs, files in os.walk(source):
 		for name in ignoreDirs:
 			if name in dirs:
-				dirs.remove(name)	# don't visit ignored directories			  
+				dirs.remove(name) # don't visit ignored directories 
 		for file in files:
 			if file in ignoreFiles:
 				continue
-			from_ = os.path.join(root, file)			  
+			from_ = os.path.join(root, file)
 			to_ = os.path.expanduser(from_.replace(source, target, 1))
 			to_directory = os.path.expanduser(split(to_)[0])
 			if not exists(to_directory):
@@ -72,8 +90,14 @@ def stage(platform, project_dir, manifest, callback):
 		moduleid = manifest.moduleid
 		version = manifest.version
 		script = os.path.join(template_dir,'..','project.py')
+		
 		# create a temporary proj
-		run([script,name,moduleid,dir,platform])
+		create_project_args = [script, name, moduleid, dir, platform]
+		if is_android(platform):
+			create_project_args.append(android_sdk.get_android_sdk())
+		
+		run_python(create_project_args)
+		
 		gen_project_dir = os.path.join(dir, name)
 		gen_resources_dir = os.path.join(gen_project_dir, 'Resources')
 		
@@ -106,11 +130,10 @@ def stage(platform, project_dir, manifest, callback):
 
 			# build the module
 			script = os.path.join(project_dir,'build.py')
-			run([script])
+			run_python([script])
 		elif is_android(platform):
 			buildfile = os.path.join(project_dir, 'dist', '%s.jar' % name)
-			build_xml = os.path.join(project_dir, 'build.xml')
-			run(['ant', '-f', build_xml], cwd=project_dir)
+			run_ant(project_dir)
 
 		if buildfile:
 			shutil.copy(buildfile,module_dir)
@@ -124,7 +147,7 @@ def stage(platform, project_dir, manifest, callback):
 		if not dont_delete: shutil.rmtree(dir)
 
 def main(args):
-	
+	global android_sdk
 	# command platform project_dir
 	command = args[1]
 	platform = args[2]
@@ -133,16 +156,16 @@ def main(args):
 	error = False
 	
 	if is_android(platform):
-		sdk = AndroidSDK(manifest.get_property('android.sdk'), 4)
+		android_sdk = AndroidSDK(manifest.get_property('android.sdk'), 4)
 		
 	if command == 'run':
 		def run_callback(gen_project_dir):
 			script = os.path.abspath(os.path.join(template_dir,'..',platform,'builder.py'))
 			script_args = [script, 'run', gen_project_dir]
 			if is_android(platform):
-				script_args.append(sdk.get_android_sdk())
+				script_args.append(android_sdk.get_android_sdk())
 			
-			rc = run(script_args)
+			rc = run_python(script_args)
 			
 			# run the project
 			if rc==1:
@@ -157,7 +180,7 @@ def main(args):
 		if is_android(platform):
 			def run_emulator_callback(gen_project_dir):
 				script = os.path.abspath(os.path.join(template_dir, '..', platform, 'builder.py'))
-				run([script, 'run-emulator', gen_project_dir, sdk.get_android_sdk()])
+				run_python([script, 'run-emulator', gen_project_dir, android_sdk.get_android_sdk()])
 			
 			stage(platform, project_dir, manifest, run_emulator_callback)
 	

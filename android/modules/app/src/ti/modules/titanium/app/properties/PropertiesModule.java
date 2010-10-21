@@ -8,6 +8,7 @@ package ti.modules.titanium.app.properties;
 
 import org.appcelerator.kroll.KrollDefaultValueProvider;
 import org.appcelerator.kroll.KrollDict;
+import org.appcelerator.kroll.KrollInvocation;
 import org.appcelerator.kroll.KrollModule;
 import org.appcelerator.kroll.annotations.Kroll;
 import org.appcelerator.titanium.TiContext;
@@ -35,15 +36,6 @@ public class PropertiesModule extends KrollModule {
 		protected static DefaultValues _instance = new DefaultValues();
 		@Override
 		public Object getDefaultValue(Class<?> clazz) {
-			if (clazz.equals(Boolean.class)) {
-				return false;
-			} else if (Number.class.isAssignableFrom(clazz)) {
-				return 0;
-			} else if (clazz.equals(String.class)) {
-				return "";
-			} else if (clazz.equals(Object[].class)) {
-				return new Object[0];
-			}
 			return null;
 		}
 		public static DefaultValues getInstance() {
@@ -52,22 +44,33 @@ public class PropertiesModule extends KrollModule {
 	}
 	
 	@Kroll.method
-	public boolean getBool(String key,
-		@Kroll.argument(optional=true, defaultValueProvider=DefaultValues.class) boolean defaultValue) {
+	public Object getBool(String key,
+		@Kroll.argument(optional=true, defaultValueProvider=DefaultValues.class) Boolean defaultValue) {
+		
+		if (!appProperties.hasProperty(key)) {
+			// pre-empt so we can correctly return null for primitive types
+			return defaultValue;
+		}
 		return appProperties.getBool(key, defaultValue);
 	}
 	
 	@Kroll.method
-	public double getDouble(String key,
-		@Kroll.argument(optional=true, defaultValueProvider=DefaultValues.class) double defaultValue) {
-		
+	public Object getDouble(String key,
+		@Kroll.argument(optional=true, defaultValueProvider=DefaultValues.class) Double defaultValue) {
+		if (!appProperties.hasProperty(key)) {
+			// pre-empt so we can correctly return null for primitive types
+			return defaultValue;
+		}
 		return appProperties.getDouble(key, defaultValue);
 	}
 	
 	@Kroll.method
-	public int getInt(String key,
-		@Kroll.argument(optional=true, defaultValueProvider=DefaultValues.class) int defaultValue) {
-		
+	public Object getInt(String key,
+		@Kroll.argument(optional=true, defaultValueProvider=DefaultValues.class) Integer defaultValue) {
+		if (!appProperties.hasProperty(key)) {
+			// pre-empt so we can correctly return null for primitive types
+			return defaultValue;
+		}
 		return appProperties.getInt(key, defaultValue);
 	}	
 	
@@ -78,14 +81,17 @@ public class PropertiesModule extends KrollModule {
 	}	
 	
 	@Kroll.method
-	public Object getList(String key,
+	public Object getList(KrollInvocation invocation, String key,
 		@Kroll.argument(optional=true, defaultValueProvider=DefaultValues.class) Object[] defaultValue) {
 		
 		String[] values = new String[0];
-		if (appProperties.hasListProperty(key)) {			
+		if (appProperties.hasListProperty(key)) {
 			//auto transform JSON data into objects 
 			values = appProperties.getList(key, values);
 		} else {
+			if (defaultValue == null) {
+				return null;
+			}
 			values = TiConvert.toStringArray(defaultValue);
 		}
 		// Now we should process values - we want the default process to happen with both stored & default values

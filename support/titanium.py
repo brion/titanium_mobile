@@ -3,10 +3,9 @@
 #
 # Titanium SDK script
 #
-import os, sys, subprocess, types, re, uuid
+import os, sys, subprocess, types, re, uuid, platform
 from tiapp import *
-
-isDebug=False
+from manifest import *
 
 template_dir = os.path.abspath(os.path.dirname(sys._getframe(0).f_code.co_filename))
 
@@ -17,9 +16,10 @@ def die(msg):
 def validate_project_name(name):
 	if re.match("^[A-Za-z]+[A-Za-z0-9_-]*",name)==None:
 		die("Invalid project name: %s" % name)
-		
+
 def fork(args,quiet=False):
-#	print args
+	# We need to insert the python executable to be safe
+	args.insert(0, sys.executable)
 	proc = subprocess.Popen(args, stderr=subprocess.STDOUT, stdout=subprocess.PIPE)
 	while proc.poll()==None:
 		line = proc.stdout.readline()
@@ -80,19 +80,7 @@ def get_required_dir(config,key):
 	if not os.path.exists(dir):
 		die("directory: %s doesn't exist" % dir)
 	return dir
-		
-def read_manifest(project_dir):
-	path = os.path.join(project_dir,'manifest')
-	f = open(path)
-	manifest = {}
-	for line in f.readlines():
-		line = line.strip()
-		if line[0:1]=='#': continue
-		if line.find(':') < 0: continue
-		key,value = line.split(':')
-		manifest[key.strip()]=value.strip()
-	return manifest
-	
+
 def is_ios(osname):
 	if osname == 'iphone' or osname == 'ipad' or osname == 'ios':
 		return True
@@ -132,17 +120,12 @@ def create_android_project(project_dir,osname,args):
 def create_android_module(project_dir,osname,args):
 	script = os.path.join(template_dir,'module','module.py')
 	
-	if isDebug:
-		print "Script %s" % script
-		
 	name = get_required(args,'name')
 	validate_project_name(name)
 	appid = get_required(args,'id')
 	android_sdk = get_required_dir(args,'android')
 	args = [script,'--name',name,'--id',appid,'--directory',project_dir,'--platform',osname,'--sdk',android_sdk]
 	
-	if isDebug:
-		print "Calling with '{0[0]} {0[1]} {0[2]} {0[3]} {0[4]} {0[5]} {0[6]} {0[7]} {0[8]} {0[9]} {0[10]}'".format(args)
 	fork(args,False)
 	print "Created %s module project" % osname
 	return os.path.join(project_dir,name)
@@ -219,8 +202,8 @@ def dyn_run(args,project_cb,module_cb):
 		atype = get_optional(args,'type',None)
 		is_module = is_module_project(project_dir) 
 		if is_module:
-			manifest = read_manifest(project_dir)
-			platform = manifest['platform']
+			manifest = Manifest(os.path.join(project_dir, 'manifest'))
+			platform = manifest.platform
 			atype = 'module'
 		if atype == None:
 			atype = 'project'
@@ -362,7 +345,7 @@ def main(args):
 	a.pop(0) # program
 	a.pop(0) # command
 	try:
-		c = eval("%s" % command)	
+		c = eval("%s" % command)
 	except NameError,e:
 		help([command])
 	if command == 'help':

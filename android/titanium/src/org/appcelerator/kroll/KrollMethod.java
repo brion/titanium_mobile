@@ -6,7 +6,6 @@
  */
 package org.appcelerator.kroll;
 
-import org.appcelerator.titanium.kroll.KrollContext;
 import org.appcelerator.titanium.util.AsyncResult;
 import org.appcelerator.titanium.util.Log;
 import org.mozilla.javascript.Context;
@@ -90,5 +89,9 @@ public abstract class KrollMethod extends ScriptableObject implements Function {
 	
 	public void setRunOnUiThread(boolean runOnUiThread) {
 		this.runOnUiThread = runOnUiThread;
+	}
+	
+	public String getName() {
+		return name;
 	}
 }

@@ -2760,6 +2760,7 @@
 				24F29E2F12209C920099351D /* TiStylesheet.m in Sources */,
 				24F29E711220CE0A0099351D /* TiLocale.m in Sources */,
 				24F29F83122105C70099351D /* LocaleModule.m in Sources */,
+				D4AB36F5123DE20200DED4A0 /* TiUIClipboardProxy.m in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -3011,6 +3012,7 @@
 				24F29E2E12209C920099351D /* TiStylesheet.m in Sources */,
 				24F29E701220CE0A0099351D /* TiLocale.m in Sources */,
 				24F29F82122105C70099351D /* LocaleModule.m in Sources */,
+				D4AB36F6123DE20200DED4A0 /* TiUIClipboardProxy.m in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
